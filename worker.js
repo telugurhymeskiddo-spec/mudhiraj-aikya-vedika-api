@@ -6,6 +6,9 @@ export default {
       "Access-Control-Allow-Headers": "Content-Type"
     };
 
+    // =========================
+    // CORS PREFLIGHT
+    // =========================
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: corsHeaders
@@ -17,7 +20,10 @@ export default {
     // =========================
     // API HEALTH CHECK
     // =========================
-    if (url.pathname === "/" && request.method === "GET") {
+    if (
+      url.pathname === "/" &&
+      request.method === "GET"
+    ) {
       return new Response(
         JSON.stringify({
           success: true,
@@ -48,7 +54,8 @@ export default {
         const constituency = body.constituency;
         const photo_url = body.photo_url || "";
         const mobile = body.mobile || "";
-        const created_at = body.created_at || Date.now();
+        const created_at =
+          body.created_at || Date.now();
 
         if (
           !id ||
@@ -74,7 +81,15 @@ export default {
 
         await env.MUDHIRAJ_DB.prepare(
           `INSERT INTO users
-          (id, name, district, constituency, photo_url, created_at, mobile)
+          (
+            id,
+            name,
+            district,
+            constituency,
+            photo_url,
+            created_at,
+            mobile
+          )
           VALUES (?, ?, ?, ?, ?, ?, ?)`
         )
           .bind(
@@ -144,20 +159,21 @@ export default {
       }
 
       try {
-        const user = await env.MUDHIRAJ_DB.prepare(
-          `SELECT
-            id,
-            name,
-            district,
-            constituency,
-            photo_url,
-            created_at,
-            mobile
-           FROM users
-           WHERE id = ?`
-        )
-          .bind(id)
-          .first();
+        const user =
+          await env.MUDHIRAJ_DB.prepare(
+            `SELECT
+              id,
+              name,
+              district,
+              constituency,
+              photo_url,
+              created_at,
+              mobile
+             FROM users
+             WHERE id = ?`
+          )
+            .bind(id)
+            .first();
 
         return new Response(
           JSON.stringify({
@@ -196,7 +212,8 @@ export default {
       request.method === "POST"
     ) {
       try {
-        const id = url.searchParams.get("id");
+        const id =
+          url.searchParams.get("id");
 
         if (!id) {
           return new Response(
@@ -237,7 +254,8 @@ export default {
           );
         }
 
-        const key = "profile/" + id;
+        const key =
+          "profile/" + id;
 
         await env.MUDHIRAJ_PHOTOS.put(
           key,
@@ -263,7 +281,8 @@ export default {
         return new Response(
           JSON.stringify({
             success: true,
-            message: "Photo uploaded successfully",
+            message:
+              "Photo uploaded successfully",
             photo_url: photoUrl
           }),
           {
@@ -298,7 +317,8 @@ export default {
       request.method === "GET"
     ) {
       try {
-        const id = url.searchParams.get("id");
+        const id =
+          url.searchParams.get("id");
 
         if (!id) {
           return new Response(
@@ -310,7 +330,8 @@ export default {
           );
         }
 
-        const key = "profile/" + id;
+        const key =
+          "profile/" + id;
 
         const photo =
           await env.MUDHIRAJ_PHOTOS.get(
@@ -358,6 +379,57 @@ export default {
           {
             status: 500,
             headers: corsHeaders
+          }
+        );
+      }
+    }
+
+    // =========================
+    // ADMIN: GET ALL USERS
+    // =========================
+    if (
+      url.pathname === "/api/admin/users" &&
+      request.method === "GET"
+    ) {
+      try {
+        const result =
+          await env.MUDHIRAJ_DB.prepare(
+            `SELECT
+              id,
+              name,
+              district,
+              constituency,
+              photo_url,
+              created_at,
+              mobile
+             FROM users
+             ORDER BY created_at DESC`
+          ).all();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            users: result.results || []
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
           }
         );
       }
