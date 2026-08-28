@@ -1,0 +1,8 @@
+name = "mudhiraj-aikya-vedika-api"
+main = "worker.js"
+compatibility_date = "2026-08-28"
+
+[[d1_databases]]
+binding = "MUDHIRAJ_DB"
+database_name = "mudhiraj-aikya-vedika-db"
+database_id = "e8a17a11-3d04-4201-8419-2b11d7b78dbb"
