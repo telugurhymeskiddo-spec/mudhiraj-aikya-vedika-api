@@ -39,7 +39,280 @@ export default {
     }
 
     // =========================
-    // CREATE USER
+    // ACTIVE USER ACTIVITY
+    // =========================
+    if (
+      url.pathname === "/api/users/activity" &&
+      request.method === "POST"
+    ) {
+      try {
+        const body = await request.json();
+        const id = body.id;
+
+        if (!id) {
+          return new Response(
+            JSON.stringify({ success: false, error: "id is required" }),
+            {
+              status: 400,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders
+              }
+            }
+          );
+        }
+
+        await env.MUDHIRAJ_DB.prepare(
+          `CREATE TABLE IF NOT EXISTS user_activity (
+             user_id TEXT PRIMARY KEY,
+             last_active INTEGER NOT NULL
+           )`
+        ).run();
+
+        await env.MUDHIRAJ_DB.prepare(
+          `INSERT INTO user_activity (user_id, last_active)
+           VALUES (?, ?)
+           ON CONFLICT(user_id)
+           DO UPDATE SET last_active = excluded.last_active`
+        ).bind(id, Date.now()).run();
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+    // =========================
+    // ACTIVE USERS COUNT
+    // =========================
+    if (
+      url.pathname === "/api/admin/active-users" &&
+      request.method === "GET"
+    ) {
+      try {
+        await env.MUDHIRAJ_DB.prepare(
+          `CREATE TABLE IF NOT EXISTS user_activity (
+             user_id TEXT PRIMARY KEY,
+             last_active INTEGER NOT NULL
+           )`
+        ).run();
+
+        const result = await env.MUDHIRAJ_DB.prepare(
+          `SELECT COUNT(*) AS active_users
+           FROM user_activity
+           WHERE last_active >= ?`
+        ).bind(Date.now() - (24 * 60 * 60 * 1000)).first();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            active_users: result?.active_users || 0
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+    // =========================
+    // ADMIN DASHBOARD STATS
+    // =========================
+    if (
+      url.pathname === "/api/admin/dashboard-stats" &&
+      request.method === "GET"
+    ) {
+      try {
+        const usersResult = await env.MUDHIRAJ_DB.prepare(
+          "SELECT COUNT(*) AS total_users FROM users"
+        ).first();
+
+        const templatesResult = await env.MUDHIRAJ_DB.prepare(
+          'SELECT COUNT(*) AS total_templates FROM templates WHERE status = "published"'
+        ).first();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            total_users: usersResult?.total_users || 0,
+            total_templates: templatesResult?.total_templates || 0
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+    // =========================
+    
+// TOTAL DOWNLOADS
+if (
+  url.pathname === "/api/templates/download" &&
+  request.method === "POST"
+) {
+  try {
+    const body = await request.json();
+    const id = body.id;
+
+    if (!id) {
+      return new Response(
+        JSON.stringify({ success: false, error: "id is required" }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders
+          }
+        }
+      );
+    }
+
+    await env.MUDHIRAJ_DB.prepare(
+      `CREATE TABLE IF NOT EXISTS template_downloads (
+         id TEXT PRIMARY KEY,
+         template_id TEXT NOT NULL,
+         downloaded_at INTEGER NOT NULL
+       )`
+    ).run();
+
+    await env.MUDHIRAJ_DB.prepare(
+      `INSERT INTO template_downloads (id, template_id, downloaded_at)
+       VALUES (?, ?, ?)`
+    ).bind(
+      crypto.randomUUID(),
+      id,
+      Date.now()
+    ).run();
+
+    return new Response(
+      JSON.stringify({ success: true }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      }
+    );
+  }
+}
+
+// DASHBOARD DOWNLOAD COUNT
+if (
+  url.pathname === "/api/admin/downloads" &&
+  request.method === "GET"
+) {
+  try {
+    await env.MUDHIRAJ_DB.prepare(
+      `CREATE TABLE IF NOT EXISTS template_downloads (
+         id TEXT PRIMARY KEY,
+         template_id TEXT NOT NULL,
+         downloaded_at INTEGER NOT NULL
+       )`
+    ).run();
+
+    const result = await env.MUDHIRAJ_DB.prepare(
+      "SELECT COUNT(*) AS downloads FROM template_downloads"
+    ).first();
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        downloads: result?.downloads || 0
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      }
+    );
+  }
+}
+
+// CREATE USER
     // =========================
     if (
       url.pathname === "/api/users" &&
