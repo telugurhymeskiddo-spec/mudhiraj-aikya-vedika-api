@@ -435,7 +435,343 @@ export default {
       }
     }
 
+
+    // Template stats: Get stats
+    if (url.pathname === "/api/templates/stats" && request.method === "GET") {
+      try {
+        const id = url.searchParams.get("id");
+
+        if (!id) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "id is required"
+            }),
+            {
+              status: 400,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders
+              }
+            }
+          );
+        }
+
+        const result = await env.MUDHIRAJ_DB.prepare(
+          "SELECT views, shares FROM template_stats WHERE template_id = ?"
+        )
+          .bind(id)
+          .first();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            views: result ? result.views : 0,
+            shares: result ? result.shares : 0
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+    // Template stats: Increment views
+    if (url.pathname === "/api/templates/view" && request.method === "POST") {
+      try {
+        const id = url.searchParams.get("id");
+        if (!id) return new Response(JSON.stringify({success:false,error:"id is required"}), {status:400,headers:{"Content-Type":"application/json",...corsHeaders}});
+        await env.MUDHIRAJ_DB.prepare("INSERT INTO template_stats (template_id, views, shares) VALUES (?, 1, 0) ON CONFLICT(template_id) DO UPDATE SET views = views + 1").bind(id).run();
+        const result = await env.MUDHIRAJ_DB.prepare("SELECT views, shares FROM template_stats WHERE template_id = ?").bind(id).first();
+        return new Response(JSON.stringify({success:true,views:result ? result.views : 0,shares:result ? result.shares : 0}), {headers:{"Content-Type":"application/json",...corsHeaders}});
+      } catch (error) {
+        return new Response(JSON.stringify({success:false,error:error.message}), {status:500,headers:{"Content-Type":"application/json",...corsHeaders}});
+      }
+    }
+
+    // Template stats: Increment shares
+    if (url.pathname === "/api/templates/share" && request.method === "POST") {
+      try {
+        const id = url.searchParams.get("id");
+        if (!id) return new Response(JSON.stringify({success:false,error:"id is required"}), {status:400,headers:{"Content-Type":"application/json",...corsHeaders}});
+        await env.MUDHIRAJ_DB.prepare("INSERT INTO template_stats (template_id, views, shares) VALUES (?, 0, 1) ON CONFLICT(template_id) DO UPDATE SET shares = shares + 1").bind(id).run();
+        const result = await env.MUDHIRAJ_DB.prepare("SELECT views, shares FROM template_stats WHERE template_id = ?").bind(id).first();
+        return new Response(JSON.stringify({success:true,views:result ? result.views : 0,shares:result ? result.shares : 0}), {headers:{"Content-Type":"application/json",...corsHeaders}});
+      } catch (error) {
+        return new Response(JSON.stringify({success:false,error:error.message}), {status:500,headers:{"Content-Type":"application/json",...corsHeaders}});
+      }
+    }
+
     // =========================
+    // =========================
+    // TEMPLATES: PUBLISH
+    // =========================
+    if (url.pathname === "/api/templates" && request.method === "POST") {
+      try {
+        const body = await request.json();
+
+        const id = body.id;
+        const category = body.category;
+        const image_url = body.image_url;
+        const photo_shape = body.photo_shape || "RECTANGLE";
+        const photo_x = body.photo_x ?? 0.20;
+        const photo_y = body.photo_y ?? 0.25;
+        const photo_width = body.photo_width ?? 0.60;
+        const photo_height = body.photo_height ?? 0.40;
+        const name_x = body.name_x ?? 0.20;
+        const name_y = body.name_y ?? 0.72;
+        const name_width = body.name_width ?? 0.60;
+        const name_height = body.name_height ?? 0.12;
+        const status = body.status || "published";
+        const created_at = body.created_at || Date.now();
+
+        if (!id || !category || !image_url) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "id, category and image_url are required"
+            }),
+            {
+              status: 400,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders
+              }
+            }
+          );
+        }
+
+        await env.MUDHIRAJ_DB.prepare(
+          `INSERT OR REPLACE INTO templates
+           (id, category, image_url, photo_shape,
+            photo_x, photo_y, photo_width, photo_height,
+            name_x, name_y, name_width, name_height,
+            status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+          .bind(
+            id,
+            category,
+            image_url,
+            photo_shape,
+            photo_x,
+            photo_y,
+            photo_width,
+            photo_height,
+            name_x,
+            name_y,
+            name_width,
+            name_height,
+            status,
+            created_at
+          )
+          .run();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            template_id: id,
+            share_url: url.origin + "/template?id=" + encodeURIComponent(id)
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+    // =========================
+    // TEMPLATES: GET PUBLISHED
+    // =========================
+    if (url.pathname === "/api/templates" && request.method === "GET") {
+      try {
+        const status = url.searchParams.get("status") || "published";
+
+        const result = await env.MUDHIRAJ_DB.prepare(
+          `SELECT id, category, image_url, photo_shape,
+                  photo_x, photo_y, photo_width, photo_height,
+                  name_x, name_y, name_width, name_height,
+                  status, created_at
+           FROM templates
+           WHERE status = ?
+           ORDER BY created_at DESC`
+        )
+          .bind(status)
+          .all();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            templates: result.results || []
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+    // =========================
+    // PUBLIC TEMPLATE LINK
+    // =========================
+    if (url.pathname === "/template" && request.method === "GET") {
+      try {
+        const id = url.searchParams.get("id");
+
+        if (!id) {
+          return new Response("Template id is required", {
+            status: 400,
+            headers: corsHeaders
+          });
+        }
+
+        const template = await env.MUDHIRAJ_DB.prepare(
+          `SELECT id, category, image_url
+           FROM templates
+           WHERE id = ? AND status = "published"`
+        )
+          .bind(id)
+          .first();
+
+        if (!template) {
+          return new Response("Template not found", {
+            status: 404,
+            headers: corsHeaders
+          });
+        }
+
+        const imageUrl = template.image_url;
+
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ముదిరాజ్ ఐక్య వేదిక - ${template.category}</title>
+<meta property="og:title" content="ముదిరాజ్ ఐక్య వేదిక Template">
+<meta property="og:image" content="${imageUrl}">
+<meta property="og:type" content="website">
+</head>
+<body style="margin:0;background:#f5f5f5;text-align:center;font-family:Arial,sans-serif">
+<h2>ముదిరాజ్ ఐక్య వేదిక</h2>
+<p>${template.category}</p>
+<img src="${imageUrl}" style="max-width:100%;height:auto">
+</body>
+</html>`;
+
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=UTF-8",
+            ...corsHeaders
+          }
+        });
+      } catch (error) {
+        return new Response("Template error", {
+          status: 500,
+          headers: corsHeaders
+        });
+      }
+    }
+
+    // Template image upload / public image API
+    if (url.pathname === "/api/templates/image" && request.method === "POST") {
+      const id = url.searchParams.get("id");
+      if (!id) {
+        return new Response(JSON.stringify({ success: false, error: "Missing template id" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+
+      const imageData = await request.arrayBuffer();
+      if (!imageData.byteLength) {
+        return new Response(JSON.stringify({ success: false, error: "Empty image" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+
+      await env.MUDHIRAJ_PHOTOS.put("templates/" + id, imageData, {
+        httpMetadata: { contentType: request.headers.get("Content-Type") || "image/jpeg" }
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        image_url: url.origin + "/api/templates/image?id=" + encodeURIComponent(id)
+      }), {
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
+    if (url.pathname === "/api/templates/image" && request.method === "GET") {
+      const id = url.searchParams.get("id");
+      if (!id) {
+        return new Response("Missing template id", { status: 400, headers: corsHeaders });
+      }
+
+      const object = await env.MUDHIRAJ_PHOTOS.get("templates/" + id);
+      if (!object) {
+        return new Response("Image not found", { status: 404, headers: corsHeaders });
+      }
+
+      const headers = new Headers(corsHeaders);
+      object.writeHttpMetadata(headers);
+      headers.set("Cache-Control", "public, max-age=31536000");
+
+      return new Response(object.body, { headers });
+    }
+
     // NOT FOUND
     // =========================
     return new Response(
