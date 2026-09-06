@@ -1345,11 +1345,31 @@ if (
           });
         }
 
+        const oldCategory = await env.MUDHIRAJ_DB.prepare(
+          "SELECT name FROM categories WHERE id = ?"
+        ).bind(id).first();
+
+        if (!oldCategory) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Category not found"
+          }), {
+            status: 404,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
         await env.MUDHIRAJ_DB.prepare(
           `UPDATE categories
            SET name = ?, telugu_name = ?, icon = ?
            WHERE id = ?`
         ).bind(name, telugu_name, icon, id).run();
+
+        if (oldCategory.name !== name) {
+          await env.MUDHIRAJ_DB.prepare(
+            "UPDATE templates SET category = ? WHERE category = ?"
+          ).bind(name, oldCategory.name).run();
+        }
 
         return new Response(JSON.stringify({
           success: true
