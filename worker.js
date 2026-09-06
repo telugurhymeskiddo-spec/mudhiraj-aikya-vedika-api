@@ -1226,6 +1226,105 @@ if (
       return new Response(object.body, { headers });
     }
 
+    // ADMIN: CATEGORY-WISE TEMPLATES
+    if (url.pathname === "/api/admin/category-templates" && request.method === "GET") {
+      try {
+        const category = (url.searchParams.get("category") || "").trim();
+
+        if (!category) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Category is required"
+          }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        const result = await env.MUDHIRAJ_DB.prepare(
+          `SELECT id, category, image_url, status, created_at
+           FROM templates
+           WHERE category = ?
+           ORDER BY created_at DESC`
+        ).bind(category).all();
+
+        return new Response(JSON.stringify({
+          success: true,
+          templates: result.results || []
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
+    // ADMIN: DELETE TEMPLATE
+    if (url.pathname === "/api/admin/templates/delete" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const id = (body.id || "").trim();
+
+        if (!id) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Template ID is required"
+          }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        const template = await env.MUDHIRAJ_DB.prepare(
+          "SELECT id FROM templates WHERE id = ?"
+        ).bind(id).first();
+
+        if (!template) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Template not found"
+          }), {
+            status: 404,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        await env.MUDHIRAJ_DB.prepare(
+          "DELETE FROM templates WHERE id = ?"
+        ).bind(id).run();
+
+        await env.MUDHIRAJ_DB.prepare(
+          "DELETE FROM template_stats WHERE template_id = ?"
+        ).bind(id).run();
+
+        await env.MUDHIRAJ_DB.prepare(
+          "DELETE FROM template_downloads WHERE template_id = ?"
+        ).bind(id).run();
+
+        await env.MUDHIRAJ_PHOTOS.delete("templates/" + id);
+
+        return new Response(JSON.stringify({
+          success: true
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
     // =========================
     // ADMIN: CATEGORY MANAGEMENT
     // =========================
