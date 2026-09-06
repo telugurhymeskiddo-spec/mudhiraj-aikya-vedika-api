@@ -208,6 +208,7 @@ if (
   try {
     const body = await request.json();
     const id = body.id;
+    const user_id = body.user_id || "";
 
     if (!id) {
       return new Response(
@@ -226,16 +227,31 @@ if (
       `CREATE TABLE IF NOT EXISTS template_downloads (
          id TEXT PRIMARY KEY,
          template_id TEXT NOT NULL,
+         user_id TEXT,
+         district TEXT,
          downloaded_at INTEGER NOT NULL
        )`
     ).run();
 
+    let district = "";
+
+    if (user_id) {
+      const user = await env.MUDHIRAJ_DB.prepare(
+        "SELECT district FROM users WHERE id = ?"
+      ).bind(user_id).first();
+
+      district = user?.district || "";
+    }
+
     await env.MUDHIRAJ_DB.prepare(
-      `INSERT INTO template_downloads (id, template_id, downloaded_at)
-       VALUES (?, ?, ?)`
+      `INSERT INTO template_downloads
+       (id, template_id, user_id, district, downloaded_at)
+       VALUES (?, ?, ?, ?, ?)`
     ).bind(
       crypto.randomUUID(),
       id,
+      user_id,
+      district,
       Date.now()
     ).run();
 
@@ -794,7 +810,62 @@ if (
 
     // =========================
     // =========================
-    // TEMPLATES: PUBLISH
+    // =========================
+    // ADMIN: DISTRICT DASHBOARD
+    // =========================
+    if (
+      url.pathname === "/api/admin/district-dashboard" &&
+      request.method === "GET"
+    ) {
+      try {
+        const result = await env.MUDHIRAJ_DB.prepare(
+          `SELECT
+             u.district AS district,
+             COUNT(DISTINCT u.id) AS members,
+             COUNT(DISTINCT CASE
+               WHEN ua.last_active >= ? THEN u.id
+             END) AS active,
+             COUNT(DISTINCT td.template_id) AS templates_used,
+             COUNT(td.id) AS downloads
+           FROM users u
+           LEFT JOIN user_activity ua
+             ON ua.user_id = u.id
+           LEFT JOIN template_downloads td
+             ON td.district = u.district
+           GROUP BY u.district
+           ORDER BY u.district`
+        ).bind(Date.now() - (24 * 60 * 60 * 1000)).all();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            districts: result.results || []
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+        // TEMPLATES: PUBLISH
     // =========================
     if (url.pathname === "/api/templates" && request.method === "POST") {
       try {
