@@ -1,5 +1,5 @@
 name = "mudhiraj-aikya-vedika-api"
-main = "cloudflare-worker/worker.js"
+main = "worker.js"
 compatibility_date = "2026-08-28"
 
 [[d1_databases]]
