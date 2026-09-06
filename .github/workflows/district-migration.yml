@@ -2,6 +2,9 @@ name: District D1 Migration
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/district-migration.yml"
 
 jobs:
   migrate:
