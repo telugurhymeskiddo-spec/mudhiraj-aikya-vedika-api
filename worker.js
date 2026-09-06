@@ -1226,6 +1226,237 @@ if (
       return new Response(object.body, { headers });
     }
 
+    // =========================
+    // ADMIN: CATEGORY MANAGEMENT
+    // =========================
+    if (url.pathname === "/api/admin/categories/reorder" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const categories = Array.isArray(body.categories) ? body.categories : [];
+
+        if (!categories.length) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Category order is required"
+          }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        for (let i = 0; i < categories.length; i++) {
+          const id = String(categories[i].id || "").trim();
+          if (!id) continue;
+
+          await env.MUDHIRAJ_DB.prepare(
+            "UPDATE categories SET sort_order = ? WHERE id = ?"
+          ).bind(i, id).run();
+        }
+
+        return new Response(JSON.stringify({
+          success: true
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
+    if (url.pathname === "/api/admin/categories/replace" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const oldId = (body.old_id || "").trim();
+        const newId = (body.new_id || "").trim();
+
+        if (!oldId || !newId || oldId === newId) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Valid old and new category IDs are required"
+          }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        const oldCategory = await env.MUDHIRAJ_DB.prepare(
+          "SELECT name FROM categories WHERE id = ?"
+        ).bind(oldId).first();
+
+        const newCategory = await env.MUDHIRAJ_DB.prepare(
+          "SELECT name FROM categories WHERE id = ?"
+        ).bind(newId).first();
+
+        if (!oldCategory || !newCategory) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Category not found"
+          }), {
+            status: 404,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        await env.MUDHIRAJ_DB.prepare(
+          "UPDATE templates SET category = ? WHERE category = ?"
+        ).bind(newCategory.name, oldCategory.name).run();
+
+        await env.MUDHIRAJ_DB.prepare(
+          "DELETE FROM categories WHERE id = ?"
+        ).bind(oldId).run();
+
+        return new Response(JSON.stringify({
+          success: true
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
+    if (url.pathname === "/api/admin/categories/edit" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const id = (body.id || "").trim();
+        const name = (body.name || "").trim();
+        const telugu_name = (body.telugu_name || "").trim();
+        const icon = (body.icon || "📁").trim();
+
+        if (!id || !name) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Category ID and name are required"
+          }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        await env.MUDHIRAJ_DB.prepare(
+          `UPDATE categories
+           SET name = ?, telugu_name = ?, icon = ?
+           WHERE id = ?`
+        ).bind(name, telugu_name, icon, id).run();
+
+        return new Response(JSON.stringify({
+          success: true
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
+    if (url.pathname === "/api/admin/categories" && request.method === "POST") {
+      try {
+        await env.MUDHIRAJ_DB.prepare(`CREATE TABLE IF NOT EXISTS categories (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          telugu_name TEXT NOT NULL DEFAULT '',
+          icon TEXT NOT NULL DEFAULT '📁',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        )`).run();
+
+        const body = await request.json();
+        const name = (body.name || "").trim();
+        const telugu_name = (body.telugu_name || "").trim();
+        const icon = (body.icon || "📁").trim();
+
+        if (!name) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Category name is required"
+          }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
+        }
+
+        const last = await env.MUDHIRAJ_DB.prepare(
+          "SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM categories"
+        ).first();
+
+        const sort_order = Number(last?.max_order ?? -1) + 1;
+        const id = crypto.randomUUID();
+
+        await env.MUDHIRAJ_DB.prepare(
+          `INSERT INTO categories
+           (id, name, telugu_name, icon, sort_order, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        ).bind(id, name, telugu_name, icon, sort_order, Date.now()).run();
+
+        return new Response(JSON.stringify({
+          success: true,
+          category_id: id
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
+    if (url.pathname === "/api/admin/categories" && request.method === "GET") {
+      try {
+        await env.MUDHIRAJ_DB.prepare(`CREATE TABLE IF NOT EXISTS categories (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          telugu_name TEXT NOT NULL DEFAULT '',
+          icon TEXT NOT NULL DEFAULT '📁',
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at INTEGER NOT NULL
+        )`).run();
+
+        const result = await env.MUDHIRAJ_DB.prepare(
+          `SELECT id, name, telugu_name, icon, sort_order, created_at
+           FROM categories
+           ORDER BY sort_order ASC, created_at ASC`
+        ).all();
+
+        return new Response(JSON.stringify({
+          success: true,
+          categories: result.results || []
+        }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+    }
+
     // NOT FOUND
     // =========================
     return new Response(
