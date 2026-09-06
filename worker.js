@@ -808,63 +808,122 @@ if (
       }
     }
 
-    // =========================
-    // =========================
-    // =========================
-    // ADMIN: DISTRICT DASHBOARD
-    // =========================
-    if (
-      url.pathname === "/api/admin/district-dashboard" &&
-      request.method === "GET"
-    ) {
-      try {
-        const result = await env.MUDHIRAJ_DB.prepare(
-          `SELECT
-             u.district AS district,
-             COUNT(DISTINCT u.id) AS members,
-             COUNT(DISTINCT CASE
-               WHEN ua.last_active >= ? THEN u.id
-             END) AS active,
-             COUNT(DISTINCT td.template_id) AS templates_used,
-             COUNT(td.id) AS downloads
-           FROM users u
-           LEFT JOIN user_activity ua
-             ON ua.user_id = u.id
-           LEFT JOIN template_downloads td
-             ON td.district = u.district
-           GROUP BY u.district
-           ORDER BY u.district`
-        ).bind(Date.now() - (24 * 60 * 60 * 1000)).all();
+    
+// =========================
+// ADMIN: DISTRICT DASHBOARD
+// =========================
+if (
+  url.pathname === "/api/admin/district-dashboard" &&
+  request.method === "GET"
+) {
+  try {
+    const allDistricts = [
+      "Adilabad",
+      "Bhadradri Kothagudem",
+      "Hanamkonda",
+      "Hyderabad",
+      "Jagtial",
+      "Jangaon",
+      "Jayashankar Bhupalpally",
+      "Jogulamba Gadwal",
+      "Kamareddy",
+      "Karimnagar",
+      "Khammam",
+      "Komaram Bheem Asifabad",
+      "Mahabubabad",
+      "Mahabubnagar",
+      "Mancherial",
+      "Medak",
+      "Medchal-Malkajgiri",
+      "Mulugu",
+      "Nagarkurnool",
+      "Nalgonda",
+      "Narayanpet",
+      "Nirmal",
+      "Nizamabad",
+      "Peddapalli",
+      "Rajanna Sircilla",
+      "Rangareddy",
+      "Sangareddy",
+      "Siddipet",
+      "Suryapet",
+      "Vikarabad",
+      "Wanaparthy",
+      "Warangal",
+      "Yadadri Bhuvanagiri"
+    ];
 
-        return new Response(
-          JSON.stringify({
-            success: true,
-            districts: result.results || []
-          }),
-          {
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders
-            }
-          }
-        );
-      } catch (error) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: error.message
-          }),
-          {
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders
-            }
-          }
-        );
-      }
+    const result = await env.MUDHIRAJ_DB.prepare(
+      `SELECT
+         u.district AS district,
+         COUNT(DISTINCT u.id) AS members,
+         COUNT(DISTINCT CASE
+           WHEN ua.last_active >= ? THEN u.id
+         END) AS active,
+         (
+           SELECT COUNT(DISTINCT td2.template_id)
+           FROM template_downloads td2
+           WHERE td2.district = u.district
+         ) AS templates_used,
+         (
+           SELECT COUNT(td3.id)
+           FROM template_downloads td3
+           WHERE td3.district = u.district
+         ) AS downloads
+       FROM users u
+       LEFT JOIN user_activity ua
+         ON ua.user_id = u.id
+       GROUP BY u.district`
+    ).bind(
+      Date.now() - (24 * 60 * 60 * 1000)
+    ).all();
+
+    const byDistrict = {};
+
+    for (const row of result.results || []) {
+      byDistrict[row.district] = row;
     }
 
+    const districts = allDistricts.map((district) => {
+      const row = byDistrict[district] || {};
+
+      return {
+        district: district,
+        members: Number(row.members || 0),
+        active: Number(row.active || 0),
+        templates_used: Number(row.templates_used || 0),
+        downloads: Number(row.downloads || 0)
+      };
+    });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        districts: districts
+      }),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders
+        }
+      }
+    );
+  }
+}
         // TEMPLATES: PUBLISH
     // =========================
     if (url.pathname === "/api/templates" && request.method === "POST") {
