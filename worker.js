@@ -1434,6 +1434,28 @@ if (
           created_at INTEGER NOT NULL
         )`).run();
 
+        const defaults = [
+          ["Marriage", "వివాహం", "💍", 0],
+          ["Political", "రాజకీయ", "🏛️", 1],
+          ["Birthday", "పుట్టినరోజు", "🎂", 2],
+          ["Festival", "పండుగ", "🎉", 3]
+        ];
+
+        for (const item of defaults) {
+          await env.MUDHIRAJ_DB.prepare(
+            `INSERT OR IGNORE INTO categories
+             (id, name, telugu_name, icon, sort_order, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)`
+          ).bind(
+            crypto.randomUUID(),
+            item[0],
+            item[1],
+            item[2],
+            item[3],
+            Date.now()
+          ).run();
+        }
+
         const result = await env.MUDHIRAJ_DB.prepare(
           `SELECT id, name, telugu_name, icon, sort_order, created_at
            FROM categories
