@@ -436,6 +436,108 @@ export default {
     }
 
 
+    if (
+      url.pathname === "/api/admin/district-dashboard" &&
+      request.method === "GET"
+    ) {
+      try {
+        const result = await env.MUDHIRAJ_DB.prepare(
+          `SELECT
+             u.district AS district,
+             COUNT(DISTINCT u.id) AS members,
+             COUNT(DISTINCT CASE
+               WHEN ua.last_active >= ? THEN u.id
+             END) AS active,
+             COUNT(DISTINCT td.template_id) AS templates_used,
+             COUNT(td.id) AS downloads
+           FROM users u
+           LEFT JOIN user_activity ua
+             ON ua.user_id = u.id
+           LEFT JOIN template_downloads td
+             ON td.district = u.district
+           GROUP BY u.district
+           ORDER BY u.district`
+        ).bind(Date.now() - (24 * 60 * 60 * 1000)).all();
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            districts: result.results || []
+          }),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error.message
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders
+            }
+          }
+        );
+      }
+    }
+
+
+      if (url.pathname === "/api/admin/constituency-dashboard" && request.method === "GET") {
+        try {
+          const result = await env.MUDHIRAJ_DB.prepare(
+            `SELECT
+               u.district AS district,
+               u.constituency AS constituency,
+               COUNT(DISTINCT u.id) AS members,
+               COUNT(DISTINCT CASE WHEN ua.last_active >= ? THEN u.id END) AS active,
+               COUNT(DISTINCT td.template_id) AS templates_used,
+               COUNT(td.id) AS downloads
+             FROM users u
+             LEFT JOIN user_activity ua ON ua.user_id = u.id
+             LEFT JOIN template_downloads td ON td.user_id = u.id
+             WHERE u.district IS NOT NULL AND u.district != ''
+               AND u.constituency IS NOT NULL AND u.constituency != ''
+             GROUP BY u.district, u.constituency
+             ORDER BY u.district, u.constituency`
+          ).bind(Date.now() - (24 * 60 * 60 * 1000)).all();
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              constituencies: result.results || []
+            }),
+            {
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders
+              }
+            }
+          );
+        } catch (error) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: error.message
+            }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders
+              }
+            }
+          );
+        }
+      }
+
+
     // Template stats: Get stats
     if (url.pathname === "/api/templates/stats" && request.method === "GET") {
       try {
