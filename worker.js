@@ -742,9 +742,7 @@ export default {
         });
       }
 
-      await env.MUDHIRAJ_PHOTOS.put("templates/" + id, imageData, {
-        httpMetadata: { contentType: request.headers.get("Content-Type") || "image/jpeg" }
-      });
+      await env.MUDHIRAJ_PHOTOS.put("templates/" + id, imageData);
 
       return new Response(JSON.stringify({
         success: true,
@@ -760,17 +758,16 @@ export default {
         return new Response("Missing template id", { status: 400, headers: corsHeaders });
       }
 
-      const object = await env.MUDHIRAJ_PHOTOS.get("templates/" + id);
-      if (!object) {
-        return new Response("Image not found", { status: 404, headers: corsHeaders });
-      }
-
-      const headers = new Headers(corsHeaders);
-      object.writeHttpMetadata(headers);
-      headers.set("Cache-Control", "public, max-age=31536000");
-
-      return new Response(object.body, { headers });
+      const imageData = await env.MUDHIRAJ_PHOTOS.get("templates/" + id, "arrayBuffer");
+    if (!imageData) {
+      return new Response("Image not found", { status: 404, headers: corsHeaders });
     }
+    const headers = new Headers(corsHeaders);
+    headers.set("Content-Type", "image/jpeg");
+    headers.set("Cache-Control", "public, max-age=31536000");
+    return new Response(imageData, { headers });
+  }
+
 
     // NOT FOUND
     // =========================
